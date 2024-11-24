@@ -25,7 +25,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/4.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-2b)_u71it5cf9feh%bkayqvyu2-yqk^l635s_idypjcj700yq4'
+SECRET_KEY = os.getenv("SECRET_KEY", "!!!SET SECRET KEY!!!")
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
@@ -48,7 +48,8 @@ INSTALLED_APPS = [
     'rest_framework',
     'rest_framework_simplejwt',
     'users',
-    'corsheaders'
+    'corsheaders',
+    'main_app',
 ]
 
 REST_FRAMEWORK = {
@@ -160,3 +161,6 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # To make Django use custom model of the user rather than embedded one
 AUTH_USER_MODEL = "users.User"
+
+OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
+ELEVEN_LABS_API_KEY = os.getenv('ELEVEN_LABS_API_KEY')
