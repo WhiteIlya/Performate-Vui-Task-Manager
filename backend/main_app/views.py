@@ -9,7 +9,7 @@ from rest_framework.parsers import MultiPartParser, FormParser
 
 from .services.open_ai import fetch_openai_response, convert_audio_to_text
 from .services.eleven_labs import convert_text_to_speech
-from .models.context import Context
+# from .models.context import Context
 
 
 class AudioToChatView(APIView):

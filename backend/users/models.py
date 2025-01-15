@@ -55,6 +55,18 @@ class User(AbstractUser):
     )
     is_admin = models.BooleanField(default=False)
     vui_configured = models.BooleanField(default=False)
+    assistant_id = models.CharField(
+        max_length=100,
+        blank=True,
+        null=True,
+        help_text="Unique Assistant ID from OpenAI for the user."
+    )
+    thread_id = models.CharField(
+        max_length=100,
+        blank=True,
+        null=True,
+        help_text="Unique Thread ID from OpenAI for the user."
+    )
 
     USERNAME_FIELD: str = "email"  # is used as the unique identifier
     EMAIL_FIELD: str = "email"

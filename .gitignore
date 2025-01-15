@@ -13,10 +13,6 @@ staticfiles/
 
 # Virtual environments
 venv/
-ENV/
-env/
-.venv/
-.virtualenv/
 
 # VS Code
 .vscode/
@@ -29,9 +25,6 @@ yarn-error.log*
 
 # Environment variables
 .env
-.env.local
-.env.production
-.env.development
 
 # macOS
 .DS_Store
