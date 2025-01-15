@@ -56,13 +56,13 @@ class User(AbstractUser):
     is_admin = models.BooleanField(default=False)
     vui_configured = models.BooleanField(default=False)
     assistant_id = models.CharField(
-        max_length=100,
+        max_length=255,
         blank=True,
         null=True,
         help_text="Unique Assistant ID from OpenAI for the user."
     )
     thread_id = models.CharField(
-        max_length=100,
+        max_length=255,
         blank=True,
         null=True,
         help_text="Unique Thread ID from OpenAI for the user."
@@ -97,3 +97,7 @@ class User(AbstractUser):
     @property
     def is_superuser(self):
         return self.is_admin
+    
+    @property
+    def full_name(self):
+        return f"{self.first_name} {self.last_name}"
