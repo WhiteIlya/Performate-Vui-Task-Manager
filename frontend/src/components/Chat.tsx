@@ -1,76 +1,143 @@
 import { FC, useState } from "react";
+import { toast, ToastContainer } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
+import { RecordMessage } from "./RecordMessage";
 
 export const Chat: FC = () => {
-  const [messages, setMessages] = useState<{ sender: string; text: string }[]>(
-    []
-  );
+  const [messages, setMessages] = useState<{ sender: string; text: string }[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
   const [input, setInput] = useState("");
+
+  const handleVoiceMessage = async (blobUrl: string) => {
+    setIsLoading(true);
+
+    fetch(blobUrl)
+      .then((res) => res.blob())
+      .then(async (blob) => {
+        const formData = new FormData();
+        formData.append("file", blob, "audio.wav");
+
+        const audioURL = URL.createObjectURL(blob);
+        const audio = new Audio(audioURL);
+        audio.play();
+
+        try {
+          const access_token = localStorage.getItem("access");
+          const response = await fetch(
+            `${import.meta.env.VITE_API_URL}/main/assistant-voice-request/`,
+            {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${access_token}`,
+              },
+              body: formData,
+            }
+          );
+
+          if (!response.ok) {
+            toast.error("Failed to process voice message.", { position: "top-right" });
+          }
+
+          const data = await response.json();
+
+          setMessages((prev) => [
+            ...prev,
+            { sender: "user", text: data.input_text },
+            { sender: "assistant", text: data.response },
+          ]);
+        } catch (error) {
+          toast.error(`Failed to send voice message: ${error}`, {
+            position: "top-right",
+          });
+        } finally {
+          setIsLoading(false);
+        }
+      });
+
+  };
+
 
   const sendMessage = async () => {
     if (!input.trim()) return;
 
-    const newMessages = [...messages, { sender: "user", text: input }];
-    setMessages(newMessages);
+    setMessages((prev) => [...prev, { sender: "user", text: input }]);
+    setIsLoading(true);
 
     try {
-      const token = localStorage.getItem("token");
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/assistant-request/`, {
+      const access_token = localStorage.getItem("access");
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/main/assistant-request/`, {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${token}`,
+          Authorization: `Bearer ${access_token}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({ message: input }),
       });
 
+      if (!response.ok) {
+        toast.error("Failed to process text message.", { position: "top-right" });
+      }
+
       const data = await response.json();
-      setMessages([
-        ...newMessages,
+      setMessages((prev) => [
+        ...prev,
         { sender: "assistant", text: data.response },
       ]);
     } catch (error) {
-      alert(`Failed to send message : ${error}`);
+        toast.error(`Failed to send message: ${error}`, { position: "top-right" });
+    } finally {
+        setIsLoading(false);
     }
     setInput("");
   };
 
   return (
-    <div className="flex flex-col h-full bg-gray-100">
-      <div className="flex-1 overflow-y-auto p-4">
-        {messages.map((msg, index) => (
-          <div
-            key={index}
-            className={`mb-2 ${
-              msg.sender === "user" ? "text-right" : "text-left"
-            }`}
-          >
+    <div className="flex flex-col h-2/3 bg-indigo-200 w-1/3">
+        <ToastContainer />
+        <div className="flex-1 overflow-y-auto p-4 hide-scrollbar">
+            {messages.map((msg, index) => (
             <div
-              className={`inline-block px-4 py-2 rounded ${
-                msg.sender === "user"
-                  ? "bg-blue-500 text-white"
-                  : "bg-gray-300 text-black"
-              }`}
+                key={index}
+                className={`mb-2 ${
+                    msg.sender === "user" ? "text-right" : "text-left"
+                }`}
             >
-              {msg.text}
+                <div
+                className={`inline-block px-4 py-2 rounded ${
+                    msg.sender === "user"
+                    ? "bg-indigo-400 text-black"
+                    : "bg-gray-800 text-white"
+                }`}
+                >
+                {msg.text}
+                </div>
             </div>
-          </div>
-        ))}
-      </div>
-      <div className="p-4 border-t">
-        <input
-          type="text"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          placeholder="Type a message"
-          className="w-full px-3 py-2 border rounded"
-        />
-        <button
-          onClick={sendMessage}
-          className="mt-2 w-full bg-blue-500 text-white py-2 rounded hover:bg-blue-600"
-        >
-          Send
-        </button>
-      </div>
+            ))}
+            {isLoading && (
+                <div className="text-center text-gray-500 italic mt-4">
+                    Processing your message...
+                </div>
+            )}
+        </div>
+        <div className="p-6 border-t-2 border-indigo-400">
+            <div className="flex items-center space-x-2">
+                <input
+                    type="text"
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    placeholder="Type a message"
+                    className="w-full px-3 py-2 rounded-lg border border-gray-300 placeholder-indigo-500"
+                    disabled={isLoading}
+                />
+                <RecordMessage handleStop={handleVoiceMessage} />
+            </div>
+            <button
+                onClick={sendMessage}
+                className="mt-2 w-full"
+            >
+            Send
+            </button>
+        </div>
     </div>
   );
 };

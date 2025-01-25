@@ -17,6 +17,15 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
+.hide-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
 a {
   font-weight: 500;
   color: #646cff;
