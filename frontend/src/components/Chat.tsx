@@ -58,7 +58,7 @@ const playAudio = (base64Audio: string) => {
           );
 
           if (!response.ok) {
-            toast.error("Failed to process voice message.", { position: "top-right" });
+            throw new Error(`Failed to process voice message. Reason: ${response.statusText}`);
           }
 
           const data = await response.json();
@@ -73,9 +73,7 @@ const playAudio = (base64Audio: string) => {
 
           onTaskAdded();
         } catch (error) {
-          toast.error(`Failed to send voice message: ${error}`, {
-            position: "top-right",
-          });
+          toast.error(`Failed to send voice message: ${error}`, {position: "top-right",});
         } finally {
           setIsLoading(false);
         }
@@ -102,7 +100,8 @@ const playAudio = (base64Audio: string) => {
       });
 
       if (!response.ok) {
-        toast.error("Failed to process text message.", { position: "top-right" });
+        throw new Error(`Failed to process text message. Reason: ${response.statusText}`);
+        
       }
 
       const data = await response.json();

@@ -6,7 +6,6 @@ export const MainPage: FC = () => {
     const todoRef = useRef<{ fetchTasks: () => void } | null>(null);
     
     const refreshTasks = () => {
-        console.log("Refreshing tasks...");
         if (todoRef.current) {
           todoRef.current.fetchTasks();
         }

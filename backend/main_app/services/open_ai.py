@@ -94,7 +94,20 @@ def create_assistant(name="Unknown"):
                     "required": ["main_task", "subtasks"]
                 }
             }
-        }
+        },
+        # {
+        #     "type": "function",
+        #     "function": {
+        #     "name": "get_tasks",
+        #     "description": "Fetch main tasks and their subtasks from db",
+        #     "parameters": {
+        #         "type": "object",
+        #         "properties": {
+        #         },
+        #         "required": []
+        #         }
+        #     }
+        # },
     ]
     )
     return assistant # Save afterwards

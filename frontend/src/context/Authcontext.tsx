@@ -41,7 +41,7 @@ export const AuthProvider: FC<AuthProviderProps> = ({ children }) => {
             headers: { Authorization: `Bearer ${localStorage.getItem("access")}` },
           });
   
-        if (!response.ok) throw new Error("Failed to fetch user details.");
+        if (!response.ok) throw new Error(`Failed to fetch user details. Reason: ${response.statusText}`);
   
         const data = await response.json();
         setName(data.first_name || "Guest");

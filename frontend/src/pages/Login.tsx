@@ -26,7 +26,7 @@ export const Login: React.FC = () => {
         if (response.status === 401) {
           throw new Error("Invalid email or password. Please try again.");
         } else {
-          throw new Error("Something went wrong. Please try again later.");
+          throw new Error(`Something went wrong. Please try again later. Reason: ${response.statusText}`);
         }
       }
 

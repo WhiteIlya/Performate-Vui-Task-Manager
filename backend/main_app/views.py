@@ -11,7 +11,7 @@ from django.core.files.uploadedfile import UploadedFile
 # from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework import status
 
-from .models import MainTask
+from .models import MainTask, Subtask
 
 from .serializers import AssistantRequestSerializer, MainTaskSerializer
 from .services.open_ai import (
@@ -123,3 +123,62 @@ class UserTasksAPIView(ListAPIView):
 
     def get_queryset(self):
         return MainTask.objects.filter(user=self.request.user).order_by('-created_at')
+
+
+class UpdateTaskAPIView(APIView):
+    """
+    API view to update or edit a MainTask or SubTask.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def patch(self, request, *args, **kwargs):
+        task_id = request.data.get("task_id")
+        task_type = request.data.get("task_type")
+        title = request.data.get("title")
+        description = request.data.get("description")
+        due_date = request.data.get("due_date")
+        is_completed = request.data.get("is_completed")
+
+        try:
+            # Update MainTask
+            if task_type == "main_task":
+                task = MainTask.objects.get(id=task_id, user=request.user)
+                if title is not None:
+                    task.title = title
+                if description is not None:
+                    task.description = description
+                if due_date is not None:
+                    task.due_date = due_date
+                if is_completed is not None:
+                    task.is_completed = is_completed
+                    if is_completed:
+                        # Mark all subtasks as completed
+                        task.subtasks.update(is_completed=True)
+                task.save()
+
+            # Update SubTask
+            elif task_type == "subtask":
+                subtask = Subtask.objects.get(id=task_id, main_task__user=request.user)
+                if title is not None:
+                    subtask.title = title
+                if is_completed is not None:
+                    subtask.is_completed = is_completed
+                subtask.save()
+
+                # If all subtasks are completed, mark MainTask as completed
+                # main_task = subtask.main_task
+                # if not main_task.subtasks.filter(is_completed=False).exists():
+                #     main_task.is_completed = True
+                #     main_task.save()
+
+            else:
+                return Response({"error": "Task not found"}, status=status.HTTP_404_NOT_FOUND)
+
+            return Response({"message": "Task updated successfully"}, status=status.HTTP_200_OK)
+
+        except MainTask.DoesNotExist:
+            return Response({"error": "MainTask not found"}, status=status.HTTP_404_NOT_FOUND)
+        except Subtask.DoesNotExist:
+            return Response({"error": "Subtask not found"}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
