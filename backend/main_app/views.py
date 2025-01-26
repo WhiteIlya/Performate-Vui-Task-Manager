@@ -1,15 +1,19 @@
+import base64
 import time
 import os
 import tempfile
 # from django.http import HttpResponse
 from rest_framework.views import APIView
+from rest_framework.generics import ListAPIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from django.core.files.uploadedfile import UploadedFile
 # from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework import status
 
-from .serializers import AssistantRequestSerializer
+from .models import MainTask
+
+from .serializers import AssistantRequestSerializer, MainTaskSerializer
 from .services.open_ai import (
     add_message_to_thread, 
     cancel_active_run, 
@@ -74,10 +78,12 @@ class AudioToChatAPIView(APIView):
             audio_response = convert_text_to_speech(response_message)
             if not audio_response:
                 raise ValueError("Failed to generate audio response")
+            
+            audio_base64 = base64.b64encode(audio_response).decode('utf-8')
         except Exception as e:
             return Response({"error": f"Failed to generate audio response: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-        return Response({"response": response_message, "input_text": text_message, "audio_response": audio_response.decode("latin1")}, status=status.HTTP_200_OK)
+        return Response({"response": response_message, "input_text": text_message, "audio_response": audio_base64}, status=status.HTTP_200_OK)
     
 
 
@@ -107,3 +113,13 @@ def process_request_message_to_assistant(user, message):
             if "active" in error_message.lower():
                 cancel_active_run(user.thread_id)
             raise e
+
+class UserTasksAPIView(ListAPIView):
+    """
+    API view to fetch tasks for the authenticated user.
+    """
+    permission_classes = [IsAuthenticated]
+    serializer_class = MainTaskSerializer
+
+    def get_queryset(self):
+        return MainTask.objects.filter(user=self.request.user).order_by('-created_at')

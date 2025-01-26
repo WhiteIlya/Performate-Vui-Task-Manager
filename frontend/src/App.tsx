@@ -6,12 +6,14 @@ import { Home } from './pages/Home';
 import { Login } from './pages/Login';
 import { Navbar } from './shared/Navbar';
 import { MainPage } from './pages/MainPage';
+import { ToastContainer } from 'react-toastify';
 
 export const App: FC = () => {
   return (
     <AuthProvider>
         <Router>
             <Navbar />
+            <ToastContainer />
             <Routes>
               <Route path="/" element={<Home />} />
               <Route path="/login" element={<Login />} />

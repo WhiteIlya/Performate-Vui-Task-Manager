@@ -1,12 +1,35 @@
 import { FC, useState } from "react";
-import { toast, ToastContainer } from "react-toastify";
+import { toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { RecordMessage } from "./RecordMessage";
 
-export const Chat: FC = () => {
+interface ChatProps {
+    onTaskAdded: () => void;
+}
+
+export const Chat: FC<ChatProps> = ({ onTaskAdded }) => {
   const [messages, setMessages] = useState<{ sender: string; text: string }[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [input, setInput] = useState("");
+
+const playAudio = (base64Audio: string) => {
+    try {
+        const binaryString = atob(base64Audio);
+        const binaryData = new Uint8Array(binaryString.length);
+
+        for (let i = 0; i < binaryString.length; i++) {
+        binaryData[i] = binaryString.charCodeAt(i);
+        }
+
+        const audioBlob = new Blob([binaryData], { type: "audio/mpeg" });
+        const audioUrl = URL.createObjectURL(audioBlob);
+
+        const audio = new Audio(audioUrl);
+        audio.play();
+    } catch (error) {
+        toast.error(`Failed to play audio. Error: ${error}`, { position: "top-right" });
+    }
+  };
 
   const handleVoiceMessage = async (blobUrl: string) => {
     setIsLoading(true);
@@ -45,6 +68,10 @@ export const Chat: FC = () => {
             { sender: "user", text: data.input_text },
             { sender: "assistant", text: data.response },
           ]);
+
+          playAudio(data.audio_response);
+
+          onTaskAdded();
         } catch (error) {
           toast.error(`Failed to send voice message: ${error}`, {
             position: "top-right",
@@ -83,6 +110,8 @@ export const Chat: FC = () => {
         ...prev,
         { sender: "assistant", text: data.response },
       ]);
+
+      onTaskAdded();
     } catch (error) {
         toast.error(`Failed to send message: ${error}`, { position: "top-right" });
     } finally {
@@ -92,8 +121,7 @@ export const Chat: FC = () => {
   };
 
   return (
-    <div className="flex flex-col h-2/3 bg-indigo-200 w-1/3">
-        <ToastContainer />
+    <div className="flex flex-col h-2/3 w-1/3 bg-indigo-200">
         <div className="flex-1 overflow-y-auto p-4 hide-scrollbar">
             {messages.map((msg, index) => (
             <div
@@ -135,7 +163,7 @@ export const Chat: FC = () => {
                 onClick={sendMessage}
                 className="mt-2 w-full"
             >
-            Send
+                Send
             </button>
         </div>
     </div>
