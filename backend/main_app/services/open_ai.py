@@ -6,6 +6,8 @@ import tempfile
 from openai import OpenAI
 from django.conf import settings
 
+from ..serializers import MainTaskSerializer
+
 from ..models import MainTask, Subtask
 
 client = OpenAI(api_key=settings.OPENAI_API_KEY)
@@ -146,9 +148,11 @@ def handle_function_calling(run, user):
                 due_date=task_due_date
             )
 
+            serialized_task = MainTaskSerializer(task_data).data
+
             tool_outputs.append({
                 "tool_call_id": tool_call.id,
-                "output": json.dumps({"status": "success", "task": task_data})
+                "output": json.dumps({"status": "success", "task": serialized_task})
             })
         # IF add_decomposed_task WAS CALLED BY AI
         elif tool_call.function.name == "add_decomposed_task":
@@ -169,12 +173,15 @@ def handle_function_calling(run, user):
                     title=subtask_title,
                 ))
 
+            serialized_main_task = MainTaskSerializer(main_task).data
+            serialized_subtasks = [{"id": subtask.id, "title": subtask.title} for subtask in subtasks]
+
             tool_outputs.append({
                 "tool_call_id": tool_call.id,
                 "output": json.dumps({
                     "status": "success",
-                    "main_task": main_task,
-                    "subtasks": subtasks,
+                    "main_task": serialized_main_task,
+                    "subtasks": serialized_subtasks,
                 })
             })
 
@@ -186,26 +193,8 @@ def handle_function_calling(run, user):
                 tasks = MainTask.objects.filter(user=user).prefetch_related("subtasks").order_by("-created_at")
             else:
                 tasks = MainTask.objects.filter(user=user, is_completed=False).prefetch_related("subtasks").order_by("-created_at")
-            tasks_data = [
-                {
-                    "id": task.id,
-                    "title": task.title,
-                    "description": task.description,
-                    "created_at": task.created_at.isoformat(),
-                    "due_date": task.due_date.isoformat() if task.due_date else None,
-                    "is_completed": task.is_completed,
-                    "subtasks": [
-                        {
-                            "id": subtask.id,
-                            "title": subtask.title,
-                            "due_date": subtask.due_date.isoformat() if subtask.due_date else None,
-                            "is_completed": subtask.is_completed,
-                        }
-                        for subtask in task.subtasks.all()
-                    ],
-                }
-                for task in tasks
-            ]
+
+            tasks_data = MainTaskSerializer(tasks, many=True).data
 
             tool_outputs.append({
                 "tool_call_id": tool_call.id,
