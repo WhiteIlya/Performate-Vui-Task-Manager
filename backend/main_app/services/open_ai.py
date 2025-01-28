@@ -65,7 +65,15 @@ def create_assistant(name="Unknown"):
                     "task": {
                         "type": "string",
                         "description": "Task a user asked to add"
-                    }
+                    },
+                    "description": {
+                        "type": "string",
+                        "description": "Description of the task"
+                    },
+                    "due_date": {
+                        "type": "string",
+                        "description": "Date until the task should be done"
+                    },
                 },
                 "required": ["task"]
                 }
@@ -95,19 +103,23 @@ def create_assistant(name="Unknown"):
                 }
             }
         },
-        # {
-        #     "type": "function",
-        #     "function": {
-        #     "name": "get_tasks",
-        #     "description": "Fetch main tasks and their subtasks from db",
-        #     "parameters": {
-        #         "type": "object",
-        #         "properties": {
-        #         },
-        #         "required": []
-        #         }
-        #     }
-        # },
+        {
+            "type": "function",
+            "function": {
+                "name": "get_tasks",
+                "description": "Fetch main tasks and their subtasks from the database",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "include_completed": {
+                            "type": "boolean",
+                            "description": "Whether to include completed tasks"
+                        }
+                    },
+                    "required": ["include_completed"]
+                }
+            }
+        },
     ]
     )
     return assistant # Save afterwards
@@ -124,41 +136,80 @@ def handle_function_calling(run, user):
             # Save task to MainTask
             arguments = json.loads(tool_call.function.arguments)
             task_title = arguments["task"]
+            task_description = arguments["description"] if "description" in arguments else None
+            task_due_date = arguments["due_date"] if "due_date" in arguments else None
 
-            MainTask.objects.create(
+            task_data = MainTask.objects.create(
                 user=user,
                 title=task_title,
+                description=task_description,
+                due_date=task_due_date
             )
 
             tool_outputs.append({
                 "tool_call_id": tool_call.id,
-                "output": json.dumps({"status": "success", "task": task_title})
+                "output": json.dumps({"status": "success", "task": task_data})
             })
         # IF add_decomposed_task WAS CALLED BY AI
         elif tool_call.function.name == "add_decomposed_task":
             # Save decomposed tasks
             arguments = json.loads(tool_call.function.arguments)
             main_task_title = arguments["main_task"]
-            subtasks = arguments["subtasks"]
+            subtasks_titles = arguments["subtasks"]
+            subtasks = []
 
             main_task = MainTask.objects.create(
                 user=user,
                 title=main_task_title,
             )
 
-            for subtask_title in subtasks:
-                Subtask.objects.create(
+            for subtask_title in subtasks_titles:
+                subtasks.append(Subtask.objects.create(
                     main_task=main_task,
                     title=subtask_title,
-                )
+                ))
 
             tool_outputs.append({
                 "tool_call_id": tool_call.id,
                 "output": json.dumps({
                     "status": "success",
-                    "main_task": main_task_title,
+                    "main_task": main_task,
                     "subtasks": subtasks,
                 })
+            })
+
+        # IF get_tasks WAS CALLED BY AI
+        elif tool_call.function.name == "get_tasks":
+            arguments = json.loads(tool_call.function.arguments)
+            include_completed = arguments["include_completed"]
+            if include_completed:
+                tasks = MainTask.objects.filter(user=user).prefetch_related("subtasks").order_by("-created_at")
+            else:
+                tasks = MainTask.objects.filter(user=user, is_completed=False).prefetch_related("subtasks").order_by("-created_at")
+            tasks_data = [
+                {
+                    "id": task.id,
+                    "title": task.title,
+                    "description": task.description,
+                    "created_at": task.created_at.isoformat(),
+                    "due_date": task.due_date.isoformat() if task.due_date else None,
+                    "is_completed": task.is_completed,
+                    "subtasks": [
+                        {
+                            "id": subtask.id,
+                            "title": subtask.title,
+                            "due_date": subtask.due_date.isoformat() if subtask.due_date else None,
+                            "is_completed": subtask.is_completed,
+                        }
+                        for subtask in task.subtasks.all()
+                    ],
+                }
+                for task in tasks
+            ]
+
+            tool_outputs.append({
+                "tool_call_id": tool_call.id,
+                "output": json.dumps({"status": "success", "tasks": tasks_data}),
             })
 
     if tool_outputs:
