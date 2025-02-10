@@ -78,7 +78,6 @@ const playAudio = (base64Audio: string) => {
           setIsLoading(false);
         }
       });
-
   };
 
 
@@ -120,7 +119,7 @@ const playAudio = (base64Audio: string) => {
   };
 
   return (
-    <div className="flex flex-col h-2/3 w-1/3 bg-indigo-200">
+    <div className="flex flex-col h-screen w-1/3 bg-indigo-200">
         <div className="flex-1 overflow-y-auto p-4 hide-scrollbar">
             {messages.map((msg, index) => (
             <div

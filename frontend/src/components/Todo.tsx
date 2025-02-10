@@ -1,5 +1,6 @@
 import { FC, forwardRef, useEffect, useImperativeHandle, useState } from "react";
 import { toast } from "react-toastify";
+import CalendarIcon from "../icons/CalendarIcon.tsx";
 
 interface SubTask {
     id: number;
@@ -115,7 +116,7 @@ export const Todo: FC = forwardRef<{ fetchTasks: () => void }>((_, ref) => {
   };
 
   return (
-    <div className="flex flex-col p-4 h-2/3 w-1/3">
+    <div className="flex flex-col p-4 h-screen w-1/3">
       <h2 className="text-3xl font-bold mb-4">ToDo Tasks</h2>
       {isLoading ? (
         <p>Loading tasks...</p>
@@ -169,6 +170,14 @@ export const Todo: FC = forwardRef<{ fetchTasks: () => void }>((_, ref) => {
                                         {new Date(task.created_at).toLocaleString().split(",")[0]}
                                     </p>
                                 </div>
+                                {task.due_date && (
+                                  <div className="flex items-center ml-5 gap-1">
+                                    <CalendarIcon classText="text-black"/>
+                                    <p className="text-xs text-black">
+                                        {new Date(task.due_date).toLocaleString().split(",")[0]}
+                                    </p>
+                                  </div>
+                                )}
                                 {task.subtasks.length > 0 && (
                                     <div className="ml-5 mt-2 space-y-2">
                                         {task.subtasks.map((subtask) => (
@@ -204,12 +213,22 @@ export const Todo: FC = forwardRef<{ fetchTasks: () => void }>((_, ref) => {
                                                         </div>
                                                     </>
                                                 ) : (
+                                                  <>
                                                     <p
                                                         onClick={() => handleEditClick(subtask, true)}
                                                         className="flex-1 cursor-pointer"
                                                     >
                                                         {subtask.title}
                                                     </p>
+                                                    {subtask.due_date && (
+                                                      <div className="flex items-center ml-5 gap-1">
+                                                        <CalendarIcon classText="text-black"/>
+                                                        <p className="text-xs text-black">
+                                                            {new Date(subtask.due_date).toLocaleString().split(",")[0]}
+                                                        </p>
+                                                      </div>
+                                                    )}
+                                                  </>
                                                 )}
                                             </div>
                                         ))}

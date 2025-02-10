@@ -1,3 +1,4 @@
+from datetime import timedelta
 import io
 import json
 import os
@@ -5,10 +6,11 @@ import subprocess
 import tempfile
 from openai import OpenAI
 from django.conf import settings
+from django.utils.timezone import now
 
 from ..serializers import MainTaskSerializer
 
-from ..models import MainTask, Subtask
+from ..models import MainTask, Subtask, Notification
 
 client = OpenAI(api_key=settings.OPENAI_API_KEY)
     
@@ -49,80 +51,89 @@ def create_assistant(name="Unknown"):
     assistant = client.beta.assistants.create(
         name=f"{name}'s Todo app Assistant",
         instructions=(
-            "You're a helpful assistant in the todo app that can assist users to add tasks to the todo list. "
+            "You're a helpful assistant in the todo app that can assist users to add tasks to the todo list. Answer in 3 sentences maximum "
             "Be friendly and funny. If the task is complex, suggest decomposing it into subtasks and provide options. "
             "Ask the user if they agree with the subtasks or want to modify them. "
             "If the user confirms, use the function to add the subtasks. If the user provides changes, update the subtasks accordingly before adding them."
+            "After each query check due date tasks to fetch notifications and amount of times you have reminded but it is for you rather than for user to know."
+            "Remind the user and suggest taking action proactively according to the output of fetch notifications."
         ),
         model="gpt-4o",
         tools=[
-        {
-            "type": "function",
-            "function": {
-            "name": "add_task",
-            "description": "Add task to db",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "task": {
-                        "type": "string",
-                        "description": "Task a user asked to add"
-                    },
-                    "description": {
-                        "type": "string",
-                        "description": "Description of the task"
-                    },
-                    "due_date": {
-                        "type": "string",
-                        "description": "Date until the task should be done"
-                    },
-                },
-                "required": ["task"]
-                }
-            }
-        },
-        {
-            "type": "function",
-            "function": {
-                "name": "add_decomposed_task",
-                "description": "Add decomposed tasks to the database",
+            {
+                "type": "function",
+                "function": {
+                "name": "add_task",
+                "description": "Add task to db",
                 "parameters": {
                     "type": "object",
                     "properties": {
-                        "main_task": {
+                        "task": {
                             "type": "string",
-                            "description": "The original task that was decomposed"
+                            "description": "Task a user asked to add"
                         },
-                        "subtasks": {
-                            "type": "array",
-                            "items": {
-                                "type": "string"
+                        "description": {
+                            "type": "string",
+                            "description": "Description of the task"
+                        },
+                        "due_date": {
+                            "type": "string",
+                            "description": "Date until the task should be done"
+                        },
+                    },
+                    "required": ["task"]
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "add_decomposed_task",
+                    "description": "Add decomposed tasks to the database",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "main_task": {
+                                "type": "string",
+                                "description": "The original task that was decomposed"
                             },
-                            "description": "List of decomposed subtasks"
-                        }
-                    },
-                    "required": ["main_task", "subtasks"]
+                            "subtasks": {
+                                "type": "array",
+                                "items": {
+                                    "type": "string"
+                                },
+                                "description": "List of decomposed subtasks"
+                            }
+                        },
+                        "required": ["main_task", "subtasks"]
+                    }
                 }
-            }
-        },
-        {
-            "type": "function",
-            "function": {
-                "name": "get_tasks",
-                "description": "Fetch main tasks and their subtasks from the database",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "include_completed": {
-                            "type": "boolean",
-                            "description": "Whether to include completed tasks"
-                        }
-                    },
-                    "required": ["include_completed"]
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "get_tasks",
+                    "description": "Fetch main tasks and their subtasks from the database",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "include_completed": {
+                                "type": "boolean",
+                                "description": "Whether to include completed tasks"
+                            }
+                        },
+                        "required": ["include_completed"]
+                    }
                 }
-            }
-        },
-    ]
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "check_due_date_tasks",
+                    "description": "Fetch tasks that are due soon for reminders"
+                }
+            },
+        ]
     )
     return assistant # Save afterwards
 
@@ -200,6 +211,46 @@ def handle_function_calling(run, user):
                 "tool_call_id": tool_call.id,
                 "output": json.dumps({"status": "success", "tasks": tasks_data}),
             })
+
+        # IF check_due_date_tasks WAS CALLED BY AI
+        elif tool_call.function.name == "check_due_date_tasks":
+            upcoming_tasks = MainTask.objects.filter(
+                user=user,
+                due_date__gte=now(), # due_date >= now
+                due_date__lte=now() + timedelta(days=2), # due_date <= now + 1 day
+                # => due_date between now and now + 1 day
+                is_completed=False
+            )
+
+            notifications = []
+
+            for task in upcoming_tasks:
+                existing_notifications = Notification.objects.filter(
+                    user=user,
+                    main_task=task
+                ).count()
+
+                if existing_notifications >= 4:
+                    continue
+
+                Notification.objects.create(
+                    user=user,
+                    main_task=task,
+                    reminder_count=existing_notifications + 1
+                )
+
+
+                notifications.append({"task": task.title, "you_have_reminded_count": existing_notifications})
+            
+            tool_outputs.append({
+                "tool_call_id": tool_call.id,
+                "output": json.dumps({
+                    "status": "success",
+                    "notifications": notifications,
+                })
+            })
+
+
 
     if tool_outputs:
         submit_tool_outputs(run.thread_id, run.id, tool_outputs)
