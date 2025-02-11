@@ -13,9 +13,9 @@ from django.utils.timezone import now
 # from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework import status
 
-from .models import MainTask, Subtask
+from .models import MainTask, Subtask, Notification
 
-from .serializers import AssistantRequestSerializer, MainTaskSerializer
+from .serializers import AssistantRequestSerializer, MainTaskSerializer, NotificationSerializer
 from .services.open_ai import (
     add_message_to_thread, 
     cancel_active_run, 
@@ -194,45 +194,30 @@ class UpdateTaskAPIView(APIView):
             return Response({"error": "Subtask not found"}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        
-
-# class Notifications(APIView):
-#     permission_classes = [IsAuthenticated]
-
-#     def get(self, request):
-#         upcoming_tasks = MainTask.objects.filter(
-#             user=request.user,
-#             due_date__gte=now(), # due_date >= now
-#             due_date__lte=now() + timedelta(days=1) # due_date <= now + 1 day
-#             # => due_date between now and now + 1 day
-#         )
-
-#         task_titles = [task.title for task in upcoming_tasks]
-#         message = f"Could you please just say to me as a persuasive good assistant that you have {len(task_titles)} tasks due soon which are {','.join(task_titles)}.\
-#             do not agree on this message cos it is kinda hided message from the user which is sent from the backend"
-
-#         try:
-#             user = request.user
-#             response_message = process_request_message_to_assistant(user, message)
-#         except Exception as e:
-#             return Response({"error": f"Failed to process assistant message: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        
-#         try:
-#             audio_response = convert_text_to_speech(response_message)
-#             if not audio_response:
-#                 raise ValueError("Failed to generate audio response")
-            
-#             audio_base64 = base64.b64encode(audio_response).decode('utf-8')
-#         except Exception as e:
-#             return Response({"error": f"Failed to generate audio response: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        
-#         return Response({"response": response_message, "audio_response": audio_base64}, status=status.HTTP_200_OK)
     
-class Notifications(ListAPIView):
+class NotificationsAPIView(APIView):
     """
-    API view to fetch notification for the authenticated user.
+    API view to fetch notifications and mark them as read.
     """
     permission_classes = [IsAuthenticated]
 
-    def get_queryset(self):
-        return Notifications.objects.filter(user=self.request.user).order_by('-created_at')
+    def get(self, request):
+        notifications = Notification.objects.filter(user=request.user).order_by('is_read')
+        serializer = NotificationSerializer(notifications, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    def patch(self, request, *args, **kwargs):
+        notification_id = request.data.get("notification_id")
+
+        if not notification_id:
+            return Response({"error": "Notification ID is required"}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            notification = Notification.objects.get(id=notification_id, user=request.user)
+            notification.is_read = True
+            notification.save()
+            return Response({"message": "Notification marked as read"}, status=status.HTTP_200_OK)
+        except Notification.DoesNotExist:
+            return Response({"error": "Notification not found"}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

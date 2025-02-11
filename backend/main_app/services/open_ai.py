@@ -3,7 +3,6 @@ import io
 import json
 import os
 import subprocess
-import tempfile
 from openai import OpenAI
 from django.conf import settings
 from django.utils.timezone import now
@@ -51,12 +50,19 @@ def create_assistant(name="Unknown"):
     assistant = client.beta.assistants.create(
         name=f"{name}'s Todo app Assistant",
         instructions=(
-            "You're a helpful assistant in the todo app that can assist users to add tasks to the todo list. Answer in 3 sentences maximum "
+            "You're a helpful assistant who follows persuasive system design principles in the todo app that can assist users to add tasks to the todo list. Dont answer too long but mostly it is up to you "
             "Be friendly and funny. If the task is complex, suggest decomposing it into subtasks and provide options. "
             "Ask the user if they agree with the subtasks or want to modify them. "
             "If the user confirms, use the function to add the subtasks. If the user provides changes, update the subtasks accordingly before adding them."
-            "After each query check due date tasks to fetch notifications and amount of times you have reminded but it is for you rather than for user to know."
-            "Remind the user and suggest taking action proactively according to the output of fetch notifications."
+            # "After each query check due date tasks to fetch notifications and amount of times you have reminded but it is for you rather than for user to know."
+            # "Remind the user and suggest taking action proactively according to the output of fetch notifications."
+            "After each user request, check for upcoming tasks with deadlines check_due_date_tasks. You will receive a list of tasks along with the number of times you have already reminded the user."
+            "Do not mention this count to the user."
+            "It is only up to you to decide how often to remind the user. You know both the deadline of the task and the amount of times you have reminded the user."
+            "Use create_notifications function to create notifications for the user if you decided to remind the user about a coming task to accomplish."
+            "Follow PSD principles and do not overwhelm much user with the reminders but encourage the user to take action."
+            "Make reminders engaging and persuasive, using humor, urgency, or motivational language."
+            "If multiple tasks are due soon, prioritize the most urgent ones first."
         ),
         model="gpt-4o",
         tools=[
@@ -133,6 +139,26 @@ def create_assistant(name="Unknown"):
                     "description": "Fetch tasks that are due soon for reminders"
                 }
             },
+            {
+                "type": "function",
+                "function": {
+                    "name": "create_notifications",
+                    "description": "Create notifications for the user for selected tasks.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "task_ids": {
+                                "type": "array",
+                                "items": {
+                                    "type": "number"
+                                },
+                                "description": "List of task IDs for which notifications should be created."
+                            },
+                        },
+                        "required": ["task_ids"]
+                    }
+                }
+            },
         ]
     )
     return assistant # Save afterwards
@@ -198,6 +224,7 @@ def handle_function_calling(run, user):
 
         # IF get_tasks WAS CALLED BY AI
         elif tool_call.function.name == "get_tasks":
+            print("I was in the get_tasks function")
             arguments = json.loads(tool_call.function.arguments)
             include_completed = arguments["include_completed"]
             if include_completed:
@@ -214,39 +241,57 @@ def handle_function_calling(run, user):
 
         # IF check_due_date_tasks WAS CALLED BY AI
         elif tool_call.function.name == "check_due_date_tasks":
+            print("I was in the check_due_date_tasks function")
             upcoming_tasks = MainTask.objects.filter(
                 user=user,
-                due_date__gte=now(), # due_date >= now
-                due_date__lte=now() + timedelta(days=2), # due_date <= now + 1 day
-                # => due_date between now and now + 1 day
+                # due_date__gte=now(), # due_date >= now
+                # due_date__lte=now() + timedelta(days=2), # due_date <= now + 1 day
+                # # => due_date between now and now + 1 day
                 is_completed=False
             )
 
-            notifications = []
+            serialized_tasks = MainTaskSerializer(upcoming_tasks, many=True).data
 
-            for task in upcoming_tasks:
-                existing_notifications = Notification.objects.filter(
-                    user=user,
-                    main_task=task
-                ).count()
-
-                if existing_notifications >= 4:
-                    continue
-
-                Notification.objects.create(
-                    user=user,
-                    main_task=task,
-                    reminder_count=existing_notifications + 1
-                )
-
-
-                notifications.append({"task": task.title, "you_have_reminded_count": existing_notifications})
+            task_data = []
+            for task in serialized_tasks:
+                task_id = task["id"]
+                task["you_have_reminded_count"] = Notification.objects.filter(main_task_id=task_id).count()
             
             tool_outputs.append({
                 "tool_call_id": tool_call.id,
                 "output": json.dumps({
                     "status": "success",
-                    "notifications": notifications,
+                    "tasks": serialized_tasks,
+                })
+            })
+        
+        # IF create_notifications WAS CALLED BY AI
+        elif tool_call.function.name == "create_notifications":
+            print("I was in the create notifications function")
+            arguments = json.loads(tool_call.function.arguments)
+            task_ids = arguments["task_ids"]
+
+            notifications = []
+            for task_id in task_ids:
+                try:
+                    task = MainTask.objects.get(id=task_id, user=user)
+                    reminder_count = Notification.objects.filter(main_task=task).count()
+
+                    Notification.objects.create(
+                        user=user,
+                        main_task=task,
+                        reminder_count=reminder_count + 1
+                    )
+
+                    notifications.append({"task_id": task_id, "reminder_count": reminder_count + 1})
+                except MainTask.DoesNotExist:
+                    continue
+
+            tool_outputs.append({
+                "tool_call_id": tool_call.id,
+                "output": json.dumps({
+                    "status": "success",
+                    "created_notifications": notifications,
                 })
             })
 
