@@ -9,7 +9,7 @@ User = get_user_model()  # returns a custom user models specified in the AUTH_US
 class UserSerializer(serializers.ModelSerializer):  # To serialize user info
     class Meta:
         model = User
-        fields = ['id', 'first_name', 'last_name', 'email', 'vui_configured', 'is_admin']
+        fields = ['id', 'first_name', 'last_name', 'email', 'vui_configured', 'is_admin', 'ttm_stage']
 
 class RegisterSerializer(serializers.ModelSerializer):
     email = serializers.EmailField(  # Additional email validation even though validation on the db level is already set in the model

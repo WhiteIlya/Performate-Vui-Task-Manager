@@ -1,9 +1,9 @@
-import React, { useState } from "react";
+import React, { FC, useState } from "react";
 import { toast } from "react-toastify";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/Authcontext";
 
-export const Register: React.FC = () => {
+export const Register: FC = () => {
   const [formData, setFormData] = useState({
     first_name: "",
     last_name: "",
@@ -46,7 +46,7 @@ export const Register: React.FC = () => {
 
           toast.success("Registration successful! Redirecting...", { position: "top-right" });
   
-          setTimeout(() => navigate("/"), 2000);
+          setTimeout(() => navigate("/voice-config"), 2000);
       } else {
         if (data && typeof data === "object") {
             Object.keys(data).forEach((key) => {

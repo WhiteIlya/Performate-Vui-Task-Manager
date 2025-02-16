@@ -11,6 +11,8 @@ from ..serializers import MainTaskSerializer
 
 from ..models import MainTask, Subtask, Notification
 
+from .assistant_instructions import generate_instructions
+
 client = OpenAI(api_key=settings.OPENAI_API_KEY)
     
 def fetch_openai_response(context):
@@ -43,27 +45,22 @@ def convert_audio_to_text(audio_file):
     except Exception as e:
         return f"Error while fetching response from OpenAI: {str(e)}"
     
-def create_assistant(name="Unknown"):
-    """
-    You currently cannot set the temperature for Assistant via the API.
-    """
+def create_assistant(user):
+    instructions = generate_instructions(user)
+
     assistant = client.beta.assistants.create(
-        name=f"{name}'s Todo app Assistant",
-        instructions=(
-            "You're a helpful assistant who follows persuasive system design principles in the todo app that can assist users to add tasks to the todo list. Dont answer too long but mostly it is up to you "
-            "Be friendly and funny. If the task is complex, suggest decomposing it into subtasks and provide options. "
-            "Ask the user if they agree with the subtasks or want to modify them. "
-            "If the user confirms, use the function to add the subtasks. If the user provides changes, update the subtasks accordingly before adding them."
-            # "After each query check due date tasks to fetch notifications and amount of times you have reminded but it is for you rather than for user to know."
-            # "Remind the user and suggest taking action proactively according to the output of fetch notifications."
-            "After each user request, check for upcoming tasks with deadlines check_due_date_tasks. You will receive a list of tasks along with the number of times you have already reminded the user."
-            "Do not mention this count to the user."
-            "It is only up to you to decide how often to remind the user. You know both the deadline of the task and the amount of times you have reminded the user."
-            "Use create_notifications function to create notifications for the user if you decided to remind the user about a coming task to accomplish."
-            "Follow PSD principles and do not overwhelm much user with the reminders but encourage the user to take action."
-            "Make reminders engaging and persuasive, using humor, urgency, or motivational language."
-            "If multiple tasks are due soon, prioritize the most urgent ones first."
-        ),
+        name=f"{user.full_name}'s Todo app Assistant called {user.voice_config.voice_name}",
+        instructions=instructions,
+    # "You're a helpful assistant who follows persuasive system design principles in the todo app that can assist users to add tasks to the todo list. Dont answer too long but mostly it is up to you "
+    # "Ask the user if they agree with the subtasks or want to modify them. "
+    # "If the user confirms, use the function to add the subtasks. If the user provides changes, update the subtasks accordingly before adding them."
+    # "After each user request, check for upcoming tasks with deadlines check_due_date_tasks. You will receive a list of tasks along with the number of times you have already reminded the user."
+    # "Do not mention this count to the user."
+    # "It is only up to you to decide how often to remind the user. You know both the deadline of the task and the amount of times you have reminded the user."
+    # "Use create_notifications function to create notifications for the user if you decided to remind the user about a coming task to accomplish."
+    # "Follow PSD principles and do not overwhelm much user with the reminders but encourage the user to take action."
+    # "Make reminders engaging and persuasive, using humor, urgency, or motivational language."
+    # "If multiple tasks are due soon, prioritize the most urgent ones first."
         model="gpt-4o",
         tools=[
             {
@@ -142,6 +139,13 @@ def create_assistant(name="Unknown"):
             {
                 "type": "function",
                 "function": {
+                    "name": "get_current_date_time",
+                    "description": "Fetch current time and date"
+                }
+            },
+            {
+                "type": "function",
+                "function": {
                     "name": "create_notifications",
                     "description": "Create notifications for the user for selected tasks.",
                     "parameters": {
@@ -159,9 +163,34 @@ def create_assistant(name="Unknown"):
                     }
                 }
             },
+            {
+                "type": "function",
+                "function": {
+                    "name": "update_user_ttm_stage",
+                    "description": "Determine the user's behavior stage in the Transtheoretical Model (TTM). It is either Precontemplation, Contemplation, Preparation, Action, or Maintenance.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "ttm_stage": {
+                                "type": "string",
+                                "description": "New TTM stage for the user if he deserves to change it."
+                            }
+                        },
+                        "required": ["ttm_stage"]
+                    }
+                }
+            },
         ]
     )
     return assistant # Save afterwards
+
+def modify_assistant_instruction(user):
+    assistant_id = user.assistant_id
+    instructions = generate_instructions(user)
+    assistant = client.beta.assistants.update(
+        assistant_id,
+        instructions=instructions
+    )
 
 def handle_function_calling(run, user):
     """
@@ -293,6 +322,33 @@ def handle_function_calling(run, user):
                     "status": "success",
                     "created_notifications": notifications,
                 })
+            })
+
+        # IF update_user_ttm_stage WAS CALLED BY AI
+        elif tool_call.function.name == "get_tasks":
+            print("I was in the update_user_ttm_stage function")
+            arguments = json.loads(tool_call.function.arguments)
+            ttm_stage = arguments["ttm_stage"]
+
+            user.voice_config.ttm_stage = ttm_stage
+            user.voice_config.save()
+
+            modify_assistant_instruction(user)
+
+            tool_outputs.append({
+                "tool_call_id": tool_call.id,
+                "output": json.dumps({"status": "success", "current_user_ttm_stage": ttm_stage}),
+            })
+
+        elif tool_call.function.name == "get_current_date_time":
+            print("I was in the get_current_date_time function")
+
+            date_time = now()
+            date_time = date_time.strftime("%Y-%m-%d %H:%M:%S")
+
+            tool_outputs.append({
+                "tool_call_id": tool_call.id,
+                "output": json.dumps({"status": "success", "date_time": date_time}),
             })
 
 

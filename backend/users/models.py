@@ -67,6 +67,13 @@ class User(AbstractUser):
         null=True,
         help_text="Unique Thread ID from OpenAI for the user."
     )
+    ttm_stage = models.CharField(
+        max_length=50,
+        blank=True,
+        null=True,
+        help_text="TTM stage of the user.",
+        default="Precontemplation"
+    )
 
     USERNAME_FIELD: str = "email"  # is used as the unique identifier
     EMAIL_FIELD: str = "email"

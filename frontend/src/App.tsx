@@ -9,6 +9,7 @@ import { MainPage } from './pages/MainPage';
 import { ToastContainer } from 'react-toastify';
 import { Notifications } from './pages/Notifications';
 import { Register } from './pages/Register';
+import { VoiceConfigPage } from './pages/VoiceConfigPage';
 
 export const App: FC = () => {
   return (
@@ -22,6 +23,7 @@ export const App: FC = () => {
               <Route path="/chat" element={<MainPage />} />
               <Route path="/notifications" element={<Notifications />} />
               <Route path="/register" element={<Register />} />
+              <Route path="/voice-config" element={<VoiceConfigPage />} />
             </Routes>
         </Router>
       </AuthProvider>

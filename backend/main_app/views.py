@@ -13,21 +13,22 @@ from django.utils.timezone import now
 # from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework import status
 
-from .models import MainTask, Subtask, Notification
+from .models import MainTask, Subtask, Notification, VoiceConfig
 
-from .serializers import AssistantRequestSerializer, MainTaskSerializer, NotificationSerializer
+from .serializers import AssistantRequestSerializer, MainTaskSerializer, NotificationSerializer, VoiceConfigSerializer
 from .services.open_ai import (
     add_message_to_thread, 
     cancel_active_run, 
     create_assistant, 
     create_thread, 
-    handle_function_calling, 
+    handle_function_calling,
+    modify_assistant_instruction, 
     retrieve_assistant_response, 
     retrieve_current_run, 
     run_assistant,
     convert_audio_to_text
 )
-from .services.eleven_labs import convert_text_to_speech
+from .services.eleven_labs import convert_text_to_speech, filter_voices, get_voice_settings, update_voice_settings
 
 
 class AssistantAPIView(APIView):
@@ -43,7 +44,7 @@ class AssistantAPIView(APIView):
 
         # Check if user has assistant_id and thread_id
         if not user.assistant_id or not user.thread_id:
-            assistant = create_assistant(name=user.full_name)
+            assistant = create_assistant(user)
             thread = create_thread()
 
             user.assistant_id = assistant.id
@@ -75,7 +76,7 @@ class AudioToChatAPIView(APIView):
 
             # Check if user has assistant_id and thread_id
             if not user.assistant_id or not user.thread_id:
-                assistant = create_assistant(name=user.full_name)
+                assistant = create_assistant(user)
                 thread = create_thread()
 
                 user.assistant_id = assistant.id
@@ -87,7 +88,7 @@ class AudioToChatAPIView(APIView):
             return Response({"error": f"Failed to process assistant message: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         
         try:
-            audio_response = convert_text_to_speech(response_message)
+            audio_response = convert_text_to_speech(user, response_message)
             if not audio_response:
                 raise ValueError("Failed to generate audio response")
             
@@ -221,3 +222,86 @@ class NotificationsAPIView(APIView):
             return Response({"error": "Notification not found"}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class VoiceSelectionAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        accent = request.data.get("accent")
+        gender = request.data.get("gender")
+        age = request.data.get("age")
+        description = request.data.get("description")
+        use_case = request.data.get("use_case")
+
+        voices = filter_voices(accent, gender, age, description, use_case)
+        return Response({"voices": voices}, status=status.HTTP_200_OK)
+    
+
+class VoiceSettingsAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        voice_id = request.data.get("voice_id")
+
+        if not voice_id:
+            return Response({"error": "voice_id is required"}, status=status.HTTP_400_BAD_REQUEST)
+
+        settings_data = get_voice_settings(voice_id)
+
+        if not settings_data:
+            return Response({"error": "Failed to retrieve voice settings"}, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response(settings_data, status=status.HTTP_200_OK)
+    
+
+class VoiceConfigAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        user = request.user
+        serializer = VoiceConfigSerializer(data=request.data)
+
+        if serializer.is_valid():
+            voice_config, created = VoiceConfig.objects.update_or_create(
+                user=user,
+                defaults=serializer.validated_data
+            )
+
+            settings_response = update_voice_settings(
+                    voice_id=voice_config.voice_id,
+                    stability=voice_config.stability,
+                    similarity_boost=voice_config.similarity_boost,
+                    style=voice_config.style,
+                    use_speaker_boost=voice_config.use_speaker_boost
+                )
+
+            if settings_response.get("status") != "ok":
+                return Response({"error": "Failed to update voice settings in ElevenLabs"}, status=status.HTTP_400_BAD_REQUEST)
+
+            if not user.assistant_id or not user.thread_id:
+                assistant = create_assistant(user)
+                thread = create_thread()
+
+                user.vui_configured = True
+                user.assistant_id = assistant.id
+                user.thread_id = thread.id
+                user.save()
+            else:
+                modify_assistant_instruction(user)
+
+            return Response({
+                "message": "Voice configuration saved and updated in ElevenLabs! Assistant has created.",
+                "voice_config": VoiceConfigSerializer(voice_config).data
+            }, status=status.HTTP_200_OK)
+
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+    def get(self, request):
+        user = request.user
+        try:
+            voice_config = user.voice_config
+            serializer = VoiceConfigSerializer(voice_config)
+            return Response({"voice_config": serializer.data}, status=status.HTTP_200_OK)
+        except VoiceConfig.DoesNotExist:
+            return Response({"voice_config": None}, status=status.HTTP_200_OK)

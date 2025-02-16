@@ -51,6 +51,10 @@ input:hover{
   border-color: #646cff;
 }
 
+select:hover{
+  border-color: #646cff;
+}
+
 button {
   border-radius: 8px;
   border: 1px solid transparent;

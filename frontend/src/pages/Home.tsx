@@ -20,7 +20,16 @@ export const Home: FC = () => {
                     </button>
                 </>
             ) : (
-                <h2 className="mt-4">Hello, {name || "buddy"}!</h2>
+                <>
+                    <h2 className="my-4">Hello, {name || "buddy"}!</h2>
+                    <button>
+                        <Link
+                            to="/chat"
+                        >
+                            Go to Chat
+                        </Link>
+                    </button>
+                </>
             )}
         </div>
     );

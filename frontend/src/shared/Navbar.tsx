@@ -59,6 +59,11 @@ export const Navbar: React.FC = () => {
                       Chat
                   </Link>
               </button>
+              <button >
+                  <Link to="/voice-config">
+                      Assistant Configuration
+                  </Link>
+              </button>
               <button className="relative">
                 <Link to="/notifications">
                   🔔 Notifications
