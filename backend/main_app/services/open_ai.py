@@ -7,7 +7,7 @@ from openai import OpenAI
 from django.conf import settings
 from django.utils.timezone import now
 
-from ..serializers import MainTaskSerializer
+from ..serializers import MainTaskSerializer, NotificationSerializer
 
 from ..models import MainTask, Subtask, Notification
 
@@ -281,10 +281,10 @@ def handle_function_calling(run, user):
 
             serialized_tasks = MainTaskSerializer(upcoming_tasks, many=True).data
 
-            task_data = []
             for task in serialized_tasks:
                 task_id = task["id"]
                 task["you_have_reminded_count"] = Notification.objects.filter(main_task_id=task_id).count()
+                task["notifications"] = NotificationSerializer(Notification.objects.filter(main_task_id=task_id), many=True).data
             
             tool_outputs.append({
                 "tool_call_id": tool_call.id,
@@ -325,7 +325,7 @@ def handle_function_calling(run, user):
             })
 
         # IF update_user_ttm_stage WAS CALLED BY AI
-        elif tool_call.function.name == "get_tasks":
+        elif tool_call.function.name == "update_user_ttm_stage":
             print("I was in the update_user_ttm_stage function")
             arguments = json.loads(tool_call.function.arguments)
             ttm_stage = arguments["ttm_stage"]
