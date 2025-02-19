@@ -35,7 +35,7 @@ export const Navbar: React.FC = () => {
     <div className="bg-gray-800 text-white w-full">
       <div className="mx-auto flex items-center justify-between px-4 py-3">
         <Link className="text-2xl font-bold text-left" to="/">
-          PerforMate - Voice Task Manager
+          PerforMate - Voice-Based Task Manager
         </Link>
         <div className="flex space-x-4">
           {!isAuthenticated ? (
