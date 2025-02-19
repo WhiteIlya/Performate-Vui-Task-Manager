@@ -197,7 +197,7 @@ export const VoiceConfigPage = () => {
             const responseData = await response.json();
     
             if (response.ok) {
-                toast.success("Voice saved!");
+                toast.success("Voice assistant configurations saved!");
             } else {
                 toast.error(`Failed to save voice: ${responseData.error || "Unknown error"}`);
             }
