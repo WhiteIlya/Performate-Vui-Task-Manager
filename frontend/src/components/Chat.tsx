@@ -40,9 +40,9 @@ const playAudio = (base64Audio: string) => {
         const formData = new FormData();
         formData.append("file", blob, "audio.wav");
 
-        const audioURL = URL.createObjectURL(blob);
-        const audio = new Audio(audioURL);
-        audio.play();
+        // const audioURL = URL.createObjectURL(blob);
+        // const audio = new Audio(audioURL);
+        // audio.play();
 
         try {
           const access_token = localStorage.getItem("access");

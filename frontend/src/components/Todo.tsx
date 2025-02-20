@@ -165,7 +165,7 @@ export const Todo: FC = forwardRef<{ fetchTasks: () => void }>((_, ref) => {
                                         onChange={() => toggleCompleted(task)}
                                         className="mr-2 cursor-pointer"
                                     />
-                                    <p className="text-md text-black mr-1 flex-1" onClick={() => handleEditClick(task)}>{task.title}</p>
+                                    <p className="text-md text-black mr-1 flex-1 font-bold" onClick={() => handleEditClick(task)}>{task.title}</p>
                                     <p className="text-xs text-black">
                                         {new Date(task.created_at).toLocaleString().split(",")[0]}
                                     </p>

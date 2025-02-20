@@ -43,11 +43,15 @@ class AssistantAPIView(APIView):
         user = request.user
 
         # Check if user has assistant_id and thread_id
-        if not user.assistant_id or not user.thread_id:
+        if not user.assistant_id:
             assistant = create_assistant(user)
             thread = create_thread()
 
             user.assistant_id = assistant.id
+            user.thread_id = thread.id
+            user.save()
+        elif not user.thread_id and user.assistant_id:
+            thread = create_thread()
             user.thread_id = thread.id
             user.save()
 
@@ -75,11 +79,15 @@ class AudioToChatAPIView(APIView):
             user = request.user
 
             # Check if user has assistant_id and thread_id
-            if not user.assistant_id or not user.thread_id:
+            if not user.assistant_id:
                 assistant = create_assistant(user)
                 thread = create_thread()
 
                 user.assistant_id = assistant.id
+                user.thread_id = thread.id
+                user.save()
+            elif not user.thread_id and user.assistant_id:
+                thread = create_thread()
                 user.thread_id = thread.id
                 user.save()
 
@@ -269,12 +277,12 @@ class VoiceConfigAPIView(APIView):
             )
 
             settings_response = update_voice_settings(
-                    voice_id=voice_config.voice_id,
-                    stability=voice_config.stability,
-                    similarity_boost=voice_config.similarity_boost,
-                    style=voice_config.style,
-                    use_speaker_boost=voice_config.use_speaker_boost
-                )
+                voice_id=voice_config.voice_id,
+                stability=voice_config.stability,
+                similarity_boost=voice_config.similarity_boost,
+                style=voice_config.style,
+                use_speaker_boost=voice_config.use_speaker_boost
+            )
 
             if settings_response.get("status") != "ok":
                 return Response({"error": "Failed to update voice settings in ElevenLabs"}, status=status.HTTP_400_BAD_REQUEST)

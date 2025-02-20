@@ -1,11 +1,13 @@
 from datetime import timedelta
+import pytz
 import io
 import json
 import os
 import subprocess
 from openai import OpenAI
 from django.conf import settings
-from django.utils.timezone import now
+from django.utils.timezone import now, localtime
+from django.utils.dateparse import parse_datetime
 
 from ..serializers import MainTaskSerializer, NotificationSerializer
 
@@ -207,11 +209,17 @@ def handle_function_calling(run, user):
             task_description = arguments["description"] if "description" in arguments else None
             task_due_date = arguments["due_date"] if "due_date" in arguments else None
 
+            if task_due_date:
+                user_timezone = pytz.timezone(user.time_zone if user.time_zone else "Europe/Berlin")
+                localized_due_date = user_timezone.localize(parse_datetime(task_due_date)).astimezone(pytz.UTC)
+            else:
+                localized_due_date = None
+
             task_data = MainTask.objects.create(
                 user=user,
                 title=task_title,
                 description=task_description,
-                due_date=task_due_date
+                due_date=localized_due_date
             )
 
             serialized_task = MainTaskSerializer(task_data).data
@@ -271,6 +279,9 @@ def handle_function_calling(run, user):
         # IF check_due_date_tasks WAS CALLED BY AI
         elif tool_call.function.name == "check_due_date_tasks":
             print("I was in the check_due_date_tasks function")
+
+            user_timezone = pytz.timezone(user.time_zone if user.time_zone else "Europe/Berlin")
+
             upcoming_tasks = MainTask.objects.filter(
                 user=user,
                 # due_date__gte=now(), # due_date >= now
@@ -285,6 +296,14 @@ def handle_function_calling(run, user):
                 task_id = task["id"]
                 task["you_have_reminded_count"] = Notification.objects.filter(main_task_id=task_id).count()
                 task["notifications"] = NotificationSerializer(Notification.objects.filter(main_task_id=task_id), many=True).data
+                
+                if task["due_date"]:
+                    due_date_dt = parse_datetime(task["due_date"])
+                    
+                    if due_date_dt and due_date_dt.tzinfo is None:
+                        due_date_dt = due_date_dt.replace(tzinfo=pytz.UTC)
+                    
+                    task["due_date"] = localtime(due_date_dt, user_timezone).strftime("%Y-%m-%d %H:%M:%S %Z")
             
             tool_outputs.append({
                 "tool_call_id": tool_call.id,
@@ -343,8 +362,8 @@ def handle_function_calling(run, user):
         elif tool_call.function.name == "get_current_date_time":
             print("I was in the get_current_date_time function")
 
-            date_time = now()
-            date_time = date_time.strftime("%Y-%m-%d %H:%M:%S")
+            user_timezone = pytz.timezone(user.time_zone if user.time_zone else "Europe/Berlin")
+            date_time = localtime(now(), user_timezone).strftime("%Y-%m-%d %H:%M:%S %Z")
 
             tool_outputs.append({
                 "tool_call_id": tool_call.id,

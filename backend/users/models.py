@@ -74,6 +74,13 @@ class User(AbstractUser):
         help_text="TTM stage of the user.",
         default="Precontemplation"
     )
+    time_zone = models.CharField(
+        max_length=50,
+        blank=True,
+        null=True,
+        help_text="Time zone of the user.",
+        default="Europe/Berlin"
+    )
 
     USERNAME_FIELD: str = "email"  # is used as the unique identifier
     EMAIL_FIELD: str = "email"

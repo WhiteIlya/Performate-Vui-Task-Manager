@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { toast } from "react-toastify";
+import { useNavigate } from "react-router-dom";
 
 interface Voice {
     voice_id: string;
@@ -102,6 +103,8 @@ export const VoiceConfigPage = () => {
         other_preferences: ""
     })
 
+    const navigate = useNavigate();
+
     const getFilteredOptions = (field: keyof VoiceFilter) => {
         return Array.from(
             new Set(
@@ -198,6 +201,7 @@ export const VoiceConfigPage = () => {
     
             if (response.ok) {
                 toast.success("Voice assistant configurations saved!");
+                setTimeout(() => navigate("/chat"), 2000);
             } else {
                 toast.error(`Failed to save voice: ${responseData.error || "Unknown error"}`);
             }
