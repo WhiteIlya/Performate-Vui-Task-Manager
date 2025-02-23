@@ -25,7 +25,7 @@ def generate_instructions(user):
     - **Your Trait**: {voice_config.persona_traits or "encouraging"}
     - **Formality Level**: {voice_config.formality_level or "neutral"}
     - **Interaction Style**: {voice_config.interaction_style or "supportive"}
-    - **Response Length**: {voice_config.response_length or "medium"}
+    - !!!!**Response Length**: {voice_config.response_length or "medium"}!!!!!
     - **Paraphrase Variability**: {voice_config.paraphrase_variability or "medium"}
     - **Personalized Naming**: {voice_config.personalized_naming or "use_name"}
     - **Emotional Expressiveness**: {voice_config.emotional_expressiveness or "moderate"}
